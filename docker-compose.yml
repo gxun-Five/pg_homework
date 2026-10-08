@@ -1,0 +1,218 @@
+# ============================================================================
+# PostgreSQL MCP Server - Docker Compose Configuration
+# ============================================================================
+# This docker-compose file sets up:
+# 1. PostgreSQL database
+# 2. pg-mcp server
+# 3. (Optional) Prometheus for metrics
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # PostgreSQL Database
+  # ==========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: pg-mcp-postgres
+    restart: unless-stopped
+
+    environment:
+      # PostgreSQL configuration
+      POSTGRES_DB: ${DATABASE_NAME:-mydb}
+      POSTGRES_USER: ${DATABASE_USER:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      # Performance tuning
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_MAX_CONNECTIONS: 100
+
+    ports:
+      # Expose PostgreSQL port to host (optional, for direct access)
+      - "${DATABASE_PORT:-5432}:5432"
+
+    volumes:
+      # Persist database data
+      - postgres_data:/var/lib/postgresql/data
+      # Custom initialization scripts (optional)
+      # - ./fixtures:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - pg-mcp-network
+
+  # ==========================================================================
+  # PostgreSQL MCP Server
+  # ==========================================================================
+  pg-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pg-mcp-server
+    restart: unless-stopped
+
+    environment:
+      # Database configuration (connects to postgres service)
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME:-mydb}
+      DATABASE_USER: ${DATABASE_USER:-postgres}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+
+      # Database pool settings
+      DATABASE_MIN_POOL_SIZE: ${DATABASE_MIN_POOL_SIZE:-5}
+      DATABASE_MAX_POOL_SIZE: ${DATABASE_MAX_POOL_SIZE:-20}
+      DATABASE_COMMAND_TIMEOUT: ${DATABASE_COMMAND_TIMEOUT:-30}
+
+      # OpenAI configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.2-mini}
+      OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS:-32000}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.0}
+      OPENAI_TIMEOUT: ${OPENAI_TIMEOUT:-30}
+
+      # Security settings
+      SECURITY_ALLOW_WRITE_OPERATIONS: ${SECURITY_ALLOW_WRITE_OPERATIONS:-false}
+      SECURITY_MAX_ROWS: ${SECURITY_MAX_ROWS:-10000}
+      SECURITY_MAX_EXECUTION_TIME: ${SECURITY_MAX_EXECUTION_TIME:-30}
+
+      # Validation settings
+      VALIDATION_MAX_QUESTION_LENGTH: ${VALIDATION_MAX_QUESTION_LENGTH:-10000}
+      VALIDATION_MIN_CONFIDENCE_SCORE: ${VALIDATION_MIN_CONFIDENCE_SCORE:-70}
+
+      # Cache settings
+      CACHE_ENABLED: ${CACHE_ENABLED:-true}
+      CACHE_SCHEMA_TTL: ${CACHE_SCHEMA_TTL:-3600}
+      CACHE_MAX_SIZE: ${CACHE_MAX_SIZE:-100}
+
+      # Resilience settings
+      RESILIENCE_MAX_RETRIES: ${RESILIENCE_MAX_RETRIES:-3}
+      RESILIENCE_RETRY_DELAY: ${RESILIENCE_RETRY_DELAY:-1.0}
+      RESILIENCE_BACKOFF_FACTOR: ${RESILIENCE_BACKOFF_FACTOR:-2.0}
+      RESILIENCE_CIRCUIT_BREAKER_THRESHOLD: ${RESILIENCE_CIRCUIT_BREAKER_THRESHOLD:-5}
+      RESILIENCE_CIRCUIT_BREAKER_TIMEOUT: ${RESILIENCE_CIRCUIT_BREAKER_TIMEOUT:-60}
+
+      # Observability settings
+      OBSERVABILITY_METRICS_ENABLED: ${OBSERVABILITY_METRICS_ENABLED:-true}
+      OBSERVABILITY_METRICS_PORT: 9090
+      OBSERVABILITY_LOG_LEVEL: ${OBSERVABILITY_LOG_LEVEL:-INFO}
+      OBSERVABILITY_LOG_FORMAT: ${OBSERVABILITY_LOG_FORMAT:-json}
+
+      # Environment
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+
+    ports:
+      # Expose Prometheus metrics port
+      - "${METRICS_PORT:-9090}:9090"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9090/metrics || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    networks:
+      - pg-mcp-network
+
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================================================
+  # Prometheus (Optional - for metrics collection)
+  # ==========================================================================
+  # Uncomment this section to enable Prometheus monitoring
+  #
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: pg-mcp-prometheus
+  #   restart: unless-stopped
+  #
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #     - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+  #     - '--web.console.templates=/usr/share/prometheus/consoles'
+  #
+  #   ports:
+  #     - "9091:9090"
+  #
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - prometheus_data:/prometheus
+  #
+  #   networks:
+  #     - pg-mcp-network
+  #
+  #   depends_on:
+  #     - pg-mcp
+
+  # ==========================================================================
+  # Grafana (Optional - for metrics visualization)
+  # ==========================================================================
+  # Uncomment this section to enable Grafana dashboards
+  #
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: pg-mcp-grafana
+  #   restart: unless-stopped
+  #
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+  #     - GF_USERS_ALLOW_SIGN_UP=false
+  #
+  #   ports:
+  #     - "3000:3000"
+  #
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #
+  #   networks:
+  #     - pg-mcp-network
+  #
+  #   depends_on:
+  #     - prometheus
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  pg-mcp-network:
+    driver: bridge
+    name: pg-mcp-network
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  # PostgreSQL data persistence
+  postgres_data:
+    driver: local
+    name: pg-mcp-postgres-data
+
+  # Prometheus data persistence (if enabled)
+  # prometheus_data:
+  #   driver: local
+  #   name: pg-mcp-prometheus-data
+
+  # Grafana data persistence (if enabled)
+  # grafana_data:
+  #   driver: local
+  #   name: pg-mcp-grafana-data

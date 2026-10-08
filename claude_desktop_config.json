@@ -1,0 +1,47 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/pg-mcp",
+        "run",
+        "python",
+        "main.py"
+      ],
+      "env": {
+        "DATABASE_HOST": "localhost",
+        "DATABASE_PORT": "5432",
+        "DATABASE_NAME": "your_database_name",
+        "DATABASE_USER": "your_database_user",
+        "DATABASE_PASSWORD": "your_database_password",
+        "DATABASE_MIN_POOL_SIZE": "5",
+        "DATABASE_MAX_POOL_SIZE": "20",
+        "DATABASE_COMMAND_TIMEOUT": "30",
+        "OPENAI_API_KEY": "sk-your-openai-api-key-here",
+        "OPENAI_MODEL": "gpt-5.2-mini",
+        "OPENAI_MAX_TOKENS": "32000",
+        "OPENAI_TEMPERATURE": "0.0",
+        "OPENAI_TIMEOUT": "30",
+        "SECURITY_ALLOW_WRITE_OPERATIONS": "false",
+        "SECURITY_MAX_ROWS": "10000",
+        "SECURITY_MAX_EXECUTION_TIME": "30",
+        "VALIDATION_MAX_QUESTION_LENGTH": "10000",
+        "VALIDATION_MIN_CONFIDENCE_SCORE": "70",
+        "CACHE_ENABLED": "true",
+        "CACHE_SCHEMA_TTL": "3600",
+        "CACHE_MAX_SIZE": "100",
+        "RESILIENCE_MAX_RETRIES": "3",
+        "RESILIENCE_RETRY_DELAY": "1.0",
+        "RESILIENCE_BACKOFF_FACTOR": "2.0",
+        "RESILIENCE_CIRCUIT_BREAKER_THRESHOLD": "5",
+        "RESILIENCE_CIRCUIT_BREAKER_TIMEOUT": "60",
+        "OBSERVABILITY_METRICS_ENABLED": "true",
+        "OBSERVABILITY_METRICS_PORT": "9090",
+        "OBSERVABILITY_LOG_LEVEL": "INFO",
+        "OBSERVABILITY_LOG_FORMAT": "json",
+        "ENVIRONMENT": "production"
+      }
+    }
+  }
+}
